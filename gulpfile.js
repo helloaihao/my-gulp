@@ -7,7 +7,9 @@
  */
 
 var gulp        = require('gulp');
-var $           = require('gulp-load-plugins')();
+var $           = require('gulp-load-plugins')({
+	pattern: ['gulp-*','del']
+});
 var browserSync = require('browser-sync').create();
 var reload      = browserSync.reload;
 
@@ -27,25 +29,6 @@ var globs = {
 	]
 }
 
-//压缩CSS
-gulp.task('css', function() {
-	gulp.src(globs.css)
-	.pipe($.minifyCss())
-	.pipe($.rename({suffix: '.min'}))
-	.pipe($.rev())
-	.pipe(gulp.dest(web + 'css/'))
-	.pipe($.rev.manifest())
-	.pipe(gulp.dest(web + 'rev/css'))
-});
-
-
-gulp.task('js', function() {
-	gulp.src(globs.js)
-	.pipe($.uglify())
-	.pipe($.rename({suffix: '.min'}))
-	.pipe(gulp.dest(''));
-});
-
 //编译less
 gulp.task('less', function() {
 	gulp.src(web + 'less/main.less')
@@ -54,32 +37,33 @@ gulp.task('less', function() {
 	.pipe(reload({stream: true}));
 });
 
-gulp.task('rev', function(){
-	gulp.src([globs.rev, web + 'index.html'])
-	.pipe($.revCollector({
-		replaceReved: true
-	}))
-	.pipe(gulp.dest(web + ''));
+//资源文件
+gulp.task('assets', function(){
+	gulp.src(globs.assets[0])
+	.pipe(gulp.dest(web + 'dist/fonts'));
+
+	gulp.src(globs.assets[1])
+	.pipe($.imagemin())
+	.pipe(gulp.dest(web + 'dist/images'));
+
+	gulp.src(web + 'script/header-footer.js')
+	.pipe(gulp.dest(web + 'dist/script'));
 });
 
-gulp.task('index', function() {
-	var jsFilter = $.filter(globs.js, {restore: true});
-	var cssFilter = $.filter(globs.css, {restore: true});
+//清理
+gulp.task('clean', function(done){
+	$.del(web + 'dist', done);
+});
 
-	//var userefAssets = $.useref.assets();
-
-	return gulp.src(web + 'index.html')
-    //.pipe(userefAssets)  // 解析html中build:{type}块，将里面引用到的文件合并传过来
-    .pipe(jsFilter)
-    .pipe($.uglify())             // 压缩Js
-    .pipe(jsFilter.restore)
-    .pipe(cssFilter)
-    .pipe($.minifyCss())               // 压缩Css
-    .pipe(cssFilter.restore)
-    .pipe($.rev())                // 重命名文件
-    //.pipe(userefAssets.restore())
-    .pipe($.useref())
-    .pipe($.revReplace())         // 重写文件名到html
+//压缩打包
+gulp.task('dist', ['assets'], function() {
+	gulp.src(globs.html)
+    .pipe($.useref({ searchPath: 'LinkEOL.Website' })) 
+    .pipe($.if('*.js', $.uglify()))
+    .pipe($.if('*.css', $.minifyCss()))
+    .pipe($.if('*.js', $.rev()))
+    .pipe($.if('*.css', $.rev()))
+    .pipe($.revReplace())
     .pipe(gulp.dest(web + 'dist'));
 });
 
@@ -90,7 +74,6 @@ gulp.task('serve', function() {
             baseDir: web
         }
     });
-
     gulp.watch(globs.less, ['less']);
     gulp.watch(globs.html).on('change', reload);
     gulp.watch(globs.css).on('change', reload);
